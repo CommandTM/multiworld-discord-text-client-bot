@@ -3,22 +3,25 @@ using Newtonsoft.Json;
 
 namespace MultiworldTextClient;
 
-public class DatapackageProcessor
+public class DatapackageCaller
 {
     private readonly string _endpoint = "/datapackage";
     private string _baseUri;
-    private string _uri => $"{_baseUri}/{_endpoint}/";
     private HttpClient _client;
+    
+    private string _uri => $"{_baseUri}/{_endpoint}/";
+    
 
-    public DatapackageProcessor(string baseUri)
+    public DatapackageCaller(string baseUri)
     {
         _baseUri = baseUri;
+        
         _client = new HttpClient();
+        _client.BaseAddress = new Uri(_uri);
     }
 
     public async Task<Datapackage?> GetDatapackage(string checksum)
     {
-        _client.BaseAddress = new Uri(_uri);
         var response = _client.GetAsync(checksum);
         
         var json = await response.Result.Content.ReadAsStringAsync();
