@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Net;
 using Discord.WebSocket;
+using MultiworldTextClient.Data;
 
 namespace MultiworldTextClient;
 
@@ -10,11 +11,10 @@ class Program
     
     static async Task Main(string[] args)
     {
-        var datapackage = new DatapackageCaller("https://archipelago.gg/api");
-
-        var result = await datapackage.GetDatapackage("294cc7fc5ff1aa2a9669106ab8bf0a37e5d74f0d");
+        var staticTracker = new StaticTrackerManager("https://archipelago.gg/api", "eDJlIS87SaCwKcTyQM-ZXg");
         
-        Console.WriteLine("BREAKPOINT HERE");
+        await staticTracker.GetStaticTracker();
+        await staticTracker.PopulateDatapackages();
 
         /*
         _client = new DiscordSocketClient();
