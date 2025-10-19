@@ -1,18 +1,21 @@
 ﻿using Discord;
-using Discord.Net;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
-using MultiworldTextClient.Data;
+using MultiworldTextClient.Jobs;
 using MultiworldTextClient.Managers;
+using Quartz;
 
 namespace MultiworldTextClient;
 
 class Program
 {
     private static DiscordSocketClient _client;
+    private static IScheduler _scheduler;
+    public static Dictionary<string, TrackerManager> TrackerManagers = new Dictionary<string, TrackerManager>();
     
     static async Task Main(string[] args)
     {
+        /*
         string dbName = "multiworld.db";
 
         if (!File.Exists(dbName))
@@ -27,7 +30,8 @@ class Program
         await tracker.GetStaticTracker();
         await tracker.GetRoomStatus();
 
-        await tracker.SendItemMessaages();
+        TrackerManagers.Add("0srjqEV4Q_uU38GiI81jZw", tracker);
+        */
 
         /*
         _client = new DiscordSocketClient();
@@ -40,9 +44,30 @@ class Program
 
         await _client.LoginAsync(TokenType.Bot, token);
         await _client.StartAsync();
-
-        await Task.Delay(-1);
         */
+        
+        /*
+        _scheduler = await SchedulerBuilder.Create()
+            .UseDefaultThreadPool(x => x.MaxConcurrency = 5)
+            .BuildScheduler();
+        
+        await _scheduler.Start();
+        
+        IJobDetail sendMessagesJob = JobBuilder.Create<SendMessagesJob>()
+            .UsingJobData("trackerUuid", "0srjqEV4Q_uU38GiI81jZw")
+            .WithIdentity("0srjqEV4Q_uU38GiI81jZw-messages")
+            .Build();
+        
+        ITrigger trigger = TriggerBuilder.Create()
+            .StartNow()
+            .WithSimpleSchedule(x => x.WithIntervalInMinutes(1).RepeatForever())
+            .WithIdentity("0srjqEV4Q_uU38GiI81jZw-messages-trigger")
+            .Build();
+        
+        await _scheduler.ScheduleJob(sendMessagesJob, trigger);
+        */
+        
+        await Task.Delay(-1);
     }
 
     private static async Task ProcessSlashCommand(SocketSlashCommand arg)
