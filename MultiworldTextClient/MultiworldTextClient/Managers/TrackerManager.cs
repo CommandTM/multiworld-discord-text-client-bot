@@ -1,4 +1,5 @@
 ﻿using MultiworldTextClient.Data;
+using MultiworldTextClient.Data.Database;
 using Newtonsoft.Json;
 
 namespace MultiworldTextClient.Managers;
@@ -54,24 +55,39 @@ public class TrackerManager
     {
         var tracker = await GetTracker();
 
-        foreach (var ItemsReceived in tracker.PlayerItemsRecevied)
+        using (var context = new ItemsDbContext())
         {
-            string receiver = _roomStatus.GetPlayerNameFromId(ItemsReceived.Player);
-            string receiverChecksum = _staticTracker.GetChecksumFromGameName(_roomStatus.GetPlayerGameFromId(ItemsReceived.Player));
-            foreach (var Item in ItemsReceived.Items)
+            var processedItems = context.ProcessedItems.Where(pi => pi.TrackerUuid.Equals(_trackerUuid)).ToList();
+            foreach (var ItemsReceived in tracker.PlayerItemsRecevied)
             {
-                var classification = Item[3];
-
-                if ((classification & 1) == 1)
+                string receiver = _roomStatus.GetPlayerNameFromId(ItemsReceived.Player);
+                string receiverChecksum = _staticTracker.GetChecksumFromGameName(_roomStatus.GetPlayerGameFromId(ItemsReceived.Player));
+                foreach (var Item in ItemsReceived.Items)
                 {
-                    string sender = _roomStatus.GetPlayerNameFromId(Item[2]);
-                    string senderChecksum = _staticTracker.GetChecksumFromGameName(_roomStatus.GetPlayerGameFromId(Item[2]));
+                    if (!processedItems.Any(pi => pi.ItemId == Item[0] && pi.LocationId == Item[1]))
+                    {
+                        var classification = Item[3];
 
-                    string item = _staticTracker.GetItemNameFromId(Item[0], receiverChecksum);
-                    string location = _staticTracker.GetLocationNameFromId(Item[1], senderChecksum);
-                    
-                    Console.WriteLine($"{sender} sent {item} to {receiver} ({location})");
+                        if ((classification & 1) == 1)
+                        {
+                            string sender = _roomStatus.GetPlayerNameFromId(Item[2]);
+                            string senderChecksum = _staticTracker.GetChecksumFromGameName(_roomStatus.GetPlayerGameFromId(Item[2]));
+
+                            string item = _staticTracker.GetItemNameFromId(Item[0], receiverChecksum);
+                            string location = _staticTracker.GetLocationNameFromId(Item[1], senderChecksum);
+                        
+                            Console.WriteLine($"{sender} sent {item} to {receiver} ({location})");
+                            ProcessedItem newProcessedItem = new()
+                            {
+                                TrackerUuid = _trackerUuid,
+                                ItemId = Item[0],
+                                LocationId = Item[1]
+                            };
+                            context.Add(newProcessedItem);
+                        }
+                    }
                 }
+                context.SaveChanges();
             }
         }
     }

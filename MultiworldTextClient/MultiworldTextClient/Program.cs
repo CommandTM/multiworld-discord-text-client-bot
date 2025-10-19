@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Net;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
 using MultiworldTextClient.Data;
 using MultiworldTextClient.Managers;
 
@@ -12,7 +13,17 @@ class Program
     
     static async Task Main(string[] args)
     {
-        var tracker = new TrackerManager("https://archipelago.gg/api", "eDJlIS87SaCwKcTyQM-ZXg", "hmrTjtQhSKu4tDDOCYGkaw");
+        string dbName = "multiworld.db";
+
+        if (!File.Exists(dbName))
+        {
+            File.Create(dbName).Dispose();
+        }
+
+        var context = new ItemsDbContext();
+        context.Database.Migrate();
+        
+        var tracker = new TrackerManager("https://archipelago.gg/api", "0srjqEV4Q_uU38GiI81jZw", "M6P_7kmtSUOPSU6PGKapaQ");
         await tracker.GetStaticTracker();
         await tracker.GetRoomStatus();
 

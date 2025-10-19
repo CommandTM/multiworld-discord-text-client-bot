@@ -6,21 +6,11 @@ namespace MultiworldTextClient;
 
 public class ItemsDbContext : DbContext
 {
-    DbSet<ProcessedItem> ProcessedItems { get; set; }
+    public DbSet<ProcessedItem> ProcessedItems { get; set; }
     
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        string dbName = "multiworld.db";
-
-        if (!File.Exists(dbName))
-        {
-            File.Create(dbName).Dispose();
-        }
-        
-        optionsBuilder.UseSqlite($"Data Source={dbName}");
-        
-        Database.EnsureCreated();
-        Database.Migrate();
+        optionsBuilder.UseSqlite($"Data Source=multiworld.db");
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -29,6 +19,7 @@ public class ItemsDbContext : DbContext
 
         modelBuilder.Entity<ProcessedItem>(entity =>
         {
+            entity.HasKey(e => e.Id);
             entity.Property(e => e.ItemId).IsRequired();
             entity.Property(e => e.LocationId).IsRequired();
             entity.Property(e => e.TrackerUuid).IsRequired();
