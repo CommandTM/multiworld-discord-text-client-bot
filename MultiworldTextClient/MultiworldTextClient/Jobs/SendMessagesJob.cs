@@ -5,6 +5,8 @@ namespace MultiworldTextClient.Jobs;
 public class SendMessagesJob : IJob
 {
     public string TrackerUuid { get; set; }
+    public string GuildId { get; set; }
+    public string ChannelId { get; set; }
     
     public async Task Execute(IJobExecutionContext context)
     {
@@ -12,6 +14,9 @@ public class SendMessagesJob : IJob
 
         Console.WriteLine($"Sending Messages For {TrackerUuid}...");
         
-        await tracker.SendItemMessaages();
+        ulong guildId = ulong.Parse(GuildId);
+        ulong channelId = ulong.Parse(ChannelId);
+        
+        await tracker.SendItemMessaages(guildId, channelId);
     }
 }

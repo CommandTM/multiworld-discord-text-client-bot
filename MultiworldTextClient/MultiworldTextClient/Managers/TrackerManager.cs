@@ -51,42 +51,70 @@ public class TrackerManager
         return JsonConvert.DeserializeObject<Tracker>(json);
     }
 
-    public async Task SendItemMessaages()
+    public async Task SendItemMessaages(ulong guildId, ulong channelId)
     {
         var tracker = await GetTracker();
 
         using (var context = new ItemsDbContext())
         {
             var processedItems = context.ProcessedItems.Where(pi => pi.TrackerUuid.Equals(_trackerUuid)).ToList();
+            var itemsToSend = new List<List<long>>();
             foreach (var ItemsReceived in tracker.PlayerItemsRecevied)
             {
-                string receiver = _roomStatus.GetPlayerNameFromId(ItemsReceived.Player);
-                string receiverChecksum = _staticTracker.GetChecksumFromGameName(_roomStatus.GetPlayerGameFromId(ItemsReceived.Player));
-                foreach (var Item in ItemsReceived.Items)
+                foreach (var item in ItemsReceived.Items)
                 {
-                    if (!processedItems.Any(pi => pi.ItemId == Item[0] && pi.LocationId == Item[1]))
+                    if (!processedItems.Any(pi => pi.ItemId == item[0] && pi.LocationId == item[1]))
                     {
-                        var classification = Item[3];
+                        var classification = item[3];
 
                         if ((classification & 1) == 1)
                         {
-                            string sender = _roomStatus.GetPlayerNameFromId(Item[2]);
-                            string senderChecksum = _staticTracker.GetChecksumFromGameName(_roomStatus.GetPlayerGameFromId(Item[2]));
-
-                            string item = _staticTracker.GetItemNameFromId(Item[0], receiverChecksum);
-                            string location = _staticTracker.GetLocationNameFromId(Item[1], senderChecksum);
-                        
-                            Console.WriteLine($"{sender} sent {item} to {receiver} ({location})");
-                            ProcessedItem newProcessedItem = new()
-                            {
-                                TrackerUuid = _trackerUuid,
-                                ItemId = Item[0],
-                                LocationId = Item[1]
-                            };
-                            context.Add(newProcessedItem);
+                            item.Add(ItemsReceived.Player);
+                            itemsToSend.Add(item);
                         }
                     }
                 }
+            }
+
+            if (itemsToSend.Any())
+            {
+                string message = "```ansi\n";
+                int maxLength = 1925;
+                foreach (var item in itemsToSend)
+                {
+                    string receiver = _roomStatus.GetPlayerNameFromId(item[4]);
+                    string receiverChecksum = _staticTracker.GetChecksumFromGameName(_roomStatus.GetPlayerGameFromId(item[4]));
+                
+                    string sender = _roomStatus.GetPlayerNameFromId(item[2]);
+                    string senderChecksum = _staticTracker.GetChecksumFromGameName(_roomStatus.GetPlayerGameFromId(item[2]));
+
+                    string itemName = _staticTracker.GetItemNameFromId(item[0], receiverChecksum);
+                    string location = _staticTracker.GetLocationNameFromId(item[1], senderChecksum);
+
+                    string itemMessage =
+                        $"[2;33m{sender}[0m [2;37msent[0m [2;35m{itemName}[0m[0;2m[0;2m[0m[0m[2;40m[2;42m[0;2m[0m[2;42m[0m[2;40m[0m [2;37mto[0m [2;33m{receiver}[0m [2;37m([0m[2;37m{location}[0m[2;37m)[0m";
+                    if (message.Length + itemMessage.Length < maxLength)
+                    {
+                        message += itemMessage + "\n";
+                    }
+                    else
+                    {
+                        message += "\n```";
+                        await Program.SendMessage(message, guildId, channelId);
+                        message = "```ansi\n";
+                        message += itemMessage + "\n";
+                    }
+                    ProcessedItem newProcessedItem = new()
+                    {
+                        TrackerUuid = _trackerUuid,
+                        ItemId = item[0],
+                        LocationId = item[1]
+                    };
+                    context.Add(newProcessedItem);
+                }
+
+                message += "\n```";
+                await Program.SendMessage(message, guildId, channelId);
                 context.SaveChanges();
             }
         }
