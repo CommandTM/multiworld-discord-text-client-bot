@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
+using MultiworldTextClient.Data.Database;
 using MultiworldTextClient.Jobs;
 using MultiworldTextClient.Managers;
 using Quartz;
@@ -59,6 +60,37 @@ class Program
         await _scheduler.Start();
     }
 
+    private static async Task PopulateTrackedWorlds()
+    {
+        using (var context = new ItemsDbContext())
+        {
+            var worlds = context.TrackedWorlds.ToList();
+            foreach (var world in worlds)
+            {
+                var tracker = new TrackerManager(world.BaseUrl, world.TrackerUuid, world.RoomUuid);
+                await tracker.GetStaticTracker();
+                await tracker.GetRoomStatus();
+                
+                TrackerManagers.Add(world.TrackerUuid, tracker);
+                
+                IJobDetail sendMessagesJob = JobBuilder.Create<SendMessagesJob>()
+                    .UsingJobData("trackerUuid", world.TrackerUuid)
+                    .UsingJobData("guildId", $"{world.GuildId}")
+                    .UsingJobData("channelId", $"{world.ChannelId}")
+                    .WithIdentity($"{world.TrackerUuid}-messages")
+                    .Build();
+        
+                ITrigger trigger = TriggerBuilder.Create()
+                    .StartNow()
+                    .WithSimpleSchedule(x => x.WithIntervalInMinutes(1).RepeatForever())
+                    .WithIdentity($"{world.TrackerUuid}-messages-trigger")
+                    .Build();
+        
+                await _scheduler.ScheduleJob(sendMessagesJob, trigger);
+            }
+        }
+    }
+
     private static async Task ProcessSlashCommand(SocketSlashCommand arg)
     {
         switch (arg.Data.Name)
@@ -99,6 +131,21 @@ class Program
             .Build();
         
         await _scheduler.ScheduleJob(sendMessagesJob, trigger);
+        
+        TrackedWorld world =  new TrackedWorld()
+        {
+            BaseUrl = baseUrl,
+            TrackerUuid = trackerUuid,
+            RoomUuid = roomUuid,
+            GuildId = arg.GuildId ?? 0,
+            ChannelId = arg.ChannelId ?? 0
+        };
+
+        using (var context = new ItemsDbContext())
+        {
+            context.Add(world);
+            context.SaveChanges();
+        }
     }
 
     private static async Task Ready()
@@ -114,6 +161,7 @@ class Program
         await _client.CreateGlobalApplicationCommandAsync(startTrackingCommand.Build());
         
         await CreateScheduler();
+        await PopulateTrackedWorlds();
     }
 
     private static async Task Log(LogMessage arg)
