@@ -25,9 +25,9 @@ public class DatapackageManager
 
     public async Task<bool> GetDatapackage()
     {
-        var response = _client.GetAsync(_checksum);
+        var response = await _client.GetAsync(_checksum);
         
-        var json = await response.Result.Content.ReadAsStringAsync();
+        var json = await response.Content.ReadAsStringAsync();
         _datapackage = JsonConvert.DeserializeObject<Datapackage>(json);
         
         return _datapackage != null;

@@ -2,6 +2,7 @@
 using Discord.Net;
 using Discord.WebSocket;
 using MultiworldTextClient.Data;
+using MultiworldTextClient.Managers;
 
 namespace MultiworldTextClient;
 
@@ -11,10 +12,11 @@ class Program
     
     static async Task Main(string[] args)
     {
-        var staticTracker = new StaticTrackerManager("https://archipelago.gg/api", "eDJlIS87SaCwKcTyQM-ZXg");
-        
-        await staticTracker.GetStaticTracker();
-        await staticTracker.PopulateDatapackages();
+        var tracker = new TrackerManager("https://archipelago.gg/api", "eDJlIS87SaCwKcTyQM-ZXg", "hmrTjtQhSKu4tDDOCYGkaw");
+        await tracker.GetStaticTracker();
+        await tracker.GetRoomStatus();
+
+        await tracker.SendItemMessaages();
 
         /*
         _client = new DiscordSocketClient();

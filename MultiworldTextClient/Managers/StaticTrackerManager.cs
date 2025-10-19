@@ -6,17 +6,17 @@ public class StaticTrackerManager
 {
     private readonly string _endpoint = "/static_tracker";
     private string _baseUri;
-    private string _roomUuid;
+    private string _trackerUuid;
     private HttpClient _client;
     private StaticTracker? _staticTracker;
     private Dictionary<string, DatapackageManager> _datapackages = new();
     
     private string _uri => $"{_baseUri}/{_endpoint}/";
 
-    public StaticTrackerManager(string baseUri, string roomUuid)
+    public StaticTrackerManager(string baseUri, string trackerUuid)
     {
         _baseUri = baseUri;
-        _roomUuid = roomUuid;
+        _trackerUuid = trackerUuid;
         
         _client = new HttpClient();
         _client.BaseAddress = new Uri(_uri);
@@ -24,9 +24,9 @@ public class StaticTrackerManager
 
     public async Task<bool> GetStaticTracker()
     {
-        var response = _client.GetAsync(_roomUuid);
+        var response = await _client.GetAsync(_trackerUuid);
         
-        var json = await response.Result.Content.ReadAsStringAsync();
+        var json = await response.Content.ReadAsStringAsync();
         _staticTracker = JsonConvert.DeserializeObject<StaticTracker>(json);
 
         return _staticTracker != null;
@@ -63,5 +63,13 @@ public class StaticTrackerManager
             return string.Empty;
 
         return _datapackages[checksum].GetLocationNameFromId(id);
+    }
+
+    public string GetChecksumFromGameName(string gameName)
+    {
+        if (!_staticTracker.Datapackages.ContainsKey(gameName))
+            return string.Empty;
+        
+        return _staticTracker.Datapackages[gameName].Checksum;
     }
 }
