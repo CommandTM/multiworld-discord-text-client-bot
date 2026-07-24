@@ -47,4 +47,17 @@ public class RoomStatusManager
         
         return _roomStatus.Players[index][1];
     }
+
+    public string? GetPlayerGameFromPlayerName(string name)
+    {
+        for (int i = 0; i < +_roomStatus.Players.Count; i++)
+        {
+            if (_roomStatus.Players[i][0] == name)
+            {
+                return _roomStatus.Players[i][1];
+            }
+        }
+
+        return null;
+    }
 }

@@ -9,6 +9,8 @@ public class ItemsDbContext : DbContext
     public DbSet<ProcessedItem> ProcessedItems { get; set; }
     public DbSet<TrackedWorld> TrackedWorlds { get; set; }
     
+    public DbSet<Request> Requests { get; set; }
+    
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseSqlite($"Data Source=multiworld.db");
@@ -34,6 +36,13 @@ public class ItemsDbContext : DbContext
             entity.Property(e => e.BaseUrl).IsRequired();
             entity.Property(e => e.ChannelId).IsRequired();
             entity.Property(e => e.RoomUuid).IsRequired();
+        });
+
+        modelBuilder.Entity<Request>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SlotName).IsRequired();
+            entity.Property(e => e.LocationId).IsRequired();
         });
     }
 }

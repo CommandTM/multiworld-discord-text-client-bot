@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
+using MultiworldTextClient.Data;
 using MultiworldTextClient.Data.Database;
 using MultiworldTextClient.Jobs;
 using MultiworldTextClient.Managers;
@@ -93,11 +94,21 @@ class Program
 
     private static async Task ProcessSlashCommand(SocketSlashCommand arg)
     {
-        switch (arg.Data.Name)
+        try
         {
-            case "starttracking":
-                await StartTrackingRoom(arg);
-                break;
+            switch (arg.Data.Name)
+            {
+                case "starttracking":
+                    await StartTrackingRoom(arg);
+                    break;
+                case "requestlocationsend":
+                    await RequestLocationSend(arg);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await arg.RespondAsync(ex.Message, ephemeral: true);
         }
     }
 
@@ -148,6 +159,83 @@ class Program
         }
     }
 
+    private static async Task RequestLocationSend(SocketSlashCommand arg)
+    {
+        var guildId = arg.GuildId ?? 0;
+        string slotName = arg.Data.Options.FirstOrDefault(o => o.Name.Equals("slotname")).Value.ToString();
+        string locationName = arg.Data.Options.FirstOrDefault(o => o.Name.Equals("locationname")).Value.ToString();
+        
+        using (var context = new ItemsDbContext())
+        {
+            TrackedWorld? world;
+            
+            if (context.TrackedWorlds.Where(tw => tw.GuildId == guildId).Count() > 1)
+            {
+                string? roomUuid = arg.Data.Options.FirstOrDefault(o => o.Name.Equals("roomuuid"))?.Value.ToString();
+                if (roomUuid == null)
+                {
+                    await arg.RespondAsync("Must Specify A Room UUID", ephemeral: true);
+                    return;
+                }
+                world = context.TrackedWorlds.FirstOrDefault(t => t.RoomUuid == roomUuid);
+            }
+            else
+            {
+                world = context.TrackedWorlds.FirstOrDefault(w => w.GuildId == guildId);
+            }
+
+            if (world == null)
+            {
+                await arg.RespondAsync("No Valid Room Found", ephemeral: true);
+                return;
+            }
+            
+            var roomStatusManager = new RoomStatusManager(world.BaseUrl, world.RoomUuid);
+            await roomStatusManager.GetRoomStatusAsync();
+
+            string? gameName = roomStatusManager.GetPlayerGameFromPlayerName(slotName);
+
+            if (gameName == null)
+            {
+                await arg.RespondAsync("Not A Valid Slot", ephemeral: true);
+                return;
+            }
+            
+            var staticTrackerManager = new StaticTrackerManager(world.BaseUrl, world.TrackerUuid);
+            await staticTrackerManager.GetStaticTracker();
+            await staticTrackerManager.PopulateDatapackages();
+            
+            var checksum = staticTrackerManager.GetChecksumFromGameName(gameName);
+            
+            long? locationId = staticTrackerManager.GetLocationIdFromName(locationName, checksum);
+            if (locationId == null)
+            {
+                await arg.RespondAsync("Not A Valid Location", ephemeral: true);
+                return;
+            }
+
+            if (context.Requests.Any(r => r.SlotName == slotName && r.LocationId == locationId.Value))
+            {
+                await arg.RespondAsync("There is already a request for this location.", ephemeral: true);
+                return;
+            }
+
+            Request request = new Request()
+            {
+                LocationId = locationId ?? 0,
+                SlotName =  slotName,
+            };
+            
+            context.Add(request);
+            
+            await context.SaveChangesAsync();
+            
+            request = context.Requests.FirstOrDefault(r => r.SlotName == slotName && r.LocationId == locationId);
+            
+            await arg.RespondAsync($"Request made, please notify the Multiworld organizer. ID: ${request.Id}", ephemeral: false);
+        }
+    }
+
     private static async Task Ready()
     {
         var startTrackingCommand = new SlashCommandBuilder()
@@ -157,8 +245,16 @@ class Program
             .AddOption("baseurl", ApplicationCommandOptionType.String, "Base URL of Multiworld room host", true)
             .AddOption("trackeruuid", ApplicationCommandOptionType.String, "Tracker UUID of room", true)
             .AddOption("roomuuid", ApplicationCommandOptionType.String, "Room UUID of room", true);
+
+        var requestLocationSendCommand = new SlashCommandBuilder()
+            .WithName("requestlocationsend")
+            .WithDescription("Requests A Location Release")
+            .AddOption("slotname", ApplicationCommandOptionType.String, "Slot Name the location belongs to", true)
+            .AddOption("locationname", ApplicationCommandOptionType.String, "EXACT location name to release", true)
+            .AddOption("roomuuid", ApplicationCommandOptionType.String, "Room UUID of room, must specify if multiple worlds are tracked in one guild", false);
         
         await _client.CreateGlobalApplicationCommandAsync(startTrackingCommand.Build());
+        await _client.CreateGlobalApplicationCommandAsync(requestLocationSendCommand.Build());
         
         await CreateScheduler();
         await PopulateTrackedWorlds();

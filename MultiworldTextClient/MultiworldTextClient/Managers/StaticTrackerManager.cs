@@ -65,6 +65,14 @@ public class StaticTrackerManager
         return _datapackages[checksum].GetLocationNameFromId(id);
     }
 
+    public long? GetLocationIdFromName(string locationName, string checksum)
+    {
+        if (!_datapackages.ContainsKey(checksum))
+            return null;
+        
+        return +_datapackages[checksum].GetLocationIdFromName(locationName);
+    }
+
     public string GetChecksumFromGameName(string gameName)
     {
         if (!_staticTracker.Datapackages.ContainsKey(gameName))
