@@ -56,4 +56,12 @@ public class DatapackageManager
         
         return name ?? string.Empty;
     }
+
+    public long? GetLocationIdFromName(string name)
+    {
+        if (_datapackage == null || !_datapackage.LocationNameToId.ContainsKey(name))
+            return null;
+        
+        return _datapackage.LocationNameToId[name];
+    }
 }

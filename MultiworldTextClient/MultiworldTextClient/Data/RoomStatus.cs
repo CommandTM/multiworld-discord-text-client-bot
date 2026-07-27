@@ -6,4 +6,7 @@ public class RoomStatus
 {
     [JsonProperty("players")]
     public List<List<string>> Players { get; set; } = new List<List<string>>();
+    
+    [JsonProperty("last_port")]
+    public int Port { get; set; }
 }
