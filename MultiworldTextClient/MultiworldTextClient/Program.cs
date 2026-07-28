@@ -104,6 +104,9 @@ class Program
                 case "requestlocationsend":
                     await RequestLocationSend(arg);
                     break;
+                case "requestslotrelease":
+                    await RequestSlotRelease(arg);
+                    break;
             }
         }
         catch (Exception ex)
@@ -232,6 +235,64 @@ class Program
             await SendMessage("Sent!", arg.GuildId ?? 0, arg.ChannelId ?? 0);
         }
     }
+    
+    private static async Task RequestSlotRelease(SocketSlashCommand arg)
+    {
+        var guildId = arg.GuildId ?? 0;
+        string slotName = arg.Data.Options.FirstOrDefault(o => o.Name.Equals("slotname")).Value.ToString();
+        
+        await arg.RespondAsync($"Releasing {slotName}...", ephemeral: false);
+        
+        using (var context = new ItemsDbContext())
+        {
+            TrackedWorld? world;
+            
+            if (context.TrackedWorlds.Where(tw => tw.GuildId == guildId).Count() > 1)
+            {
+                string? roomUuid = arg.Data.Options.FirstOrDefault(o => o.Name.Equals("roomuuid"))?.Value.ToString();
+                if (roomUuid == null)
+                {
+                    await SendMessage("Must Specify A Room UUID", arg.GuildId ?? 0, arg.ChannelId ?? 0);
+                    return;
+                }
+                world = context.TrackedWorlds.FirstOrDefault(t => t.RoomUuid == roomUuid);
+            }
+            else
+            {
+                world = context.TrackedWorlds.FirstOrDefault(w => w.GuildId == guildId);
+            }
+
+            if (world == null)
+            {
+                await SendMessage("No Valid Room Found", arg.GuildId ?? 0, arg.ChannelId ?? 0);
+                return;
+            }
+            
+            var roomStatusManager = new RoomStatusManager(world.BaseUrl, world.RoomUuid);
+            await roomStatusManager.GetRoomStatusAsync();
+
+            string? gameName = roomStatusManager.GetPlayerGameFromPlayerName(slotName);
+
+            if (gameName == null)
+            {
+                await SendMessage("Not A Valid Slot", arg.GuildId ?? 0, arg.ChannelId ?? 0);
+                return;
+            }
+
+            var connectionManager = new MultiworldConnectionManager(world.BaseUrl.Replace("/api", string.Empty).Replace("https://", string.Empty).Replace("http://", String.Empty), roomStatusManager.GetPort().ToString());
+            try
+            {
+                connectionManager.ReleaseSlot(gameName, slotName);
+            }
+            catch
+            {
+                await SendMessage("Failed To Connect To Room", arg.GuildId ?? 0, arg.ChannelId ?? 0);
+                return;
+            }
+            
+            await SendMessage("Released!", arg.GuildId ?? 0, arg.ChannelId ?? 0);
+        }
+    }
 
     private static async Task Ready()
     {
@@ -246,12 +307,21 @@ class Program
         var requestLocationSendCommand = new SlashCommandBuilder()
             .WithName("requestlocationsend")
             .WithDescription("Requests A Location Release")
+            .WithDefaultMemberPermissions(GuildPermission.Administrator)
             .AddOption("slotname", ApplicationCommandOptionType.String, "Slot Name the location belongs to", true)
             .AddOption("locationname", ApplicationCommandOptionType.String, "EXACT location name to release", true)
             .AddOption("roomuuid", ApplicationCommandOptionType.String, "Room UUID of room, must specify if multiple worlds are tracked in one guild", false);
         
+        var requestSlotReleaseCommand = new SlashCommandBuilder()
+            .WithName("requestslotrelease")
+            .WithDescription("Requests A Slot Release")
+            .WithDefaultMemberPermissions(GuildPermission.Administrator)
+            .AddOption("slotname", ApplicationCommandOptionType.String, "Slot Name to be released", true)
+            .AddOption("roomuuid", ApplicationCommandOptionType.String, "Room UUID of room, must specify if multiple worlds are tracked in one guild", false);
+        
         await _client.CreateGlobalApplicationCommandAsync(startTrackingCommand.Build());
         await _client.CreateGlobalApplicationCommandAsync(requestLocationSendCommand.Build());
+        await _client.CreateGlobalApplicationCommandAsync(requestSlotReleaseCommand.Build());
         
         await CreateScheduler();
         await PopulateTrackedWorlds();

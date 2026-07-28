@@ -32,4 +32,32 @@ public class MultiworldConnectionManager
 
         _session.Socket.DisconnectAsync();
     }
+
+    public void ReleaseSlot(string GameName, string SlotName)
+    {
+        var result = _session.TryConnectAndLogin(
+            GameName,
+            SlotName,
+            ItemsHandlingFlags.AllItems,
+            new Version(0, 6, 7),
+            ["MULTIWORLD DISCORD TEXT CLIENT BOT"],
+            requestSlotData: false
+        );
+
+        if (!result.Successful)
+        {
+            throw new Exception("Could not connect to server");
+        }
+
+        var unsent_locations = _session.Locations.AllMissingLocations.ToArray();
+        
+        _session.SetGoalAchieved();
+
+        if (_session.RoomState.ReleasePermissions != Permissions.Auto)
+        {
+            _session.Locations.CompleteLocationChecks(unsent_locations);
+        }
+        
+        _session.Socket.DisconnectAsync();
+    }
 }
