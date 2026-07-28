@@ -119,4 +119,62 @@ public class TrackerManager
             }
         }
     }
+
+    public async Task SendLocation(ulong guildId, ulong channelId, string slotName, string locationName)
+    {
+        await GetRoomStatus();
+        string? gameName = _roomStatus.GetPlayerGameFromPlayerName(slotName);
+
+        if (gameName == null)
+        {
+            await Program.SendMessage("Not A Valid Slot", guildId, channelId);
+            return;
+        }
+        
+        var checksum = _staticTracker.GetChecksumFromGameName(gameName);
+        long? locationId = _staticTracker.GetLocationIdFromName(locationName, checksum);
+        if (locationId == null)
+        {
+            await Program.SendMessage("Not A Valid Location", guildId, channelId);
+            return;
+        }
+        
+        var connectionManager = new MultiworldConnectionManager(_baseUri.Replace("/api", string.Empty).Replace("https://", string.Empty).Replace("http://", String.Empty), _roomStatus.GetPort().ToString());
+        try
+        {
+            connectionManager.SendLocation(gameName, slotName, locationId ?? 0);
+        }
+        catch
+        {
+            await Program.SendMessage("Failed To Connect To Room", guildId, channelId);
+            return;
+        }
+            
+        await Program.SendMessage("Sent!", guildId, channelId);
+    }
+    
+    public async Task ReleaseSlot(ulong guildId, ulong channelId, string slotName)
+    {
+        await GetRoomStatus();
+        string? gameName = _roomStatus.GetPlayerGameFromPlayerName(slotName);
+
+        if (gameName == null)
+        {
+            await Program.SendMessage("Not A Valid Slot", guildId, channelId);
+            return;
+        }
+        
+        var connectionManager = new MultiworldConnectionManager(_baseUri.Replace("/api", string.Empty).Replace("https://", string.Empty).Replace("http://", String.Empty), _roomStatus.GetPort().ToString());
+        try
+        {
+            connectionManager.ReleaseSlot(gameName, slotName);
+        }
+        catch
+        {
+            await Program.SendMessage("Failed To Connect To Room", guildId, channelId);
+            return;
+        }
+            
+        await Program.SendMessage("Released!", guildId, channelId);
+    }
 }

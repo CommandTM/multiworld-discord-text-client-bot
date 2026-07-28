@@ -195,44 +195,9 @@ class Program
                 return;
             }
             
-            var roomStatusManager = new RoomStatusManager(world.BaseUrl, world.RoomUuid);
-            await roomStatusManager.GetRoomStatusAsync();
-
-            string? gameName = roomStatusManager.GetPlayerGameFromPlayerName(slotName);
-
-            if (gameName == null)
-            {
-                await SendMessage("Not A Valid Slot", arg.GuildId ?? 0, arg.ChannelId ?? 0);
-                return;
-            }
+            var trackerManager = TrackerManagers[world.TrackerUuid];
             
-            var staticTrackerManager = new StaticTrackerManager(world.BaseUrl, world.TrackerUuid);
-            await staticTrackerManager.GetStaticTracker();
-            await staticTrackerManager.PopulateDatapackages();
-            
-            var checksum = staticTrackerManager.GetChecksumFromGameName(gameName);
-            
-            long? locationId = staticTrackerManager.GetLocationIdFromName(locationName, checksum);
-            if (locationId == null)
-            {
-                await SendMessage("Not A Valid Location", arg.GuildId ?? 0, arg.ChannelId ?? 0);
-                return;
-            }
-            
-            
-
-            var connectionManager = new MultiworldConnectionManager(world.BaseUrl.Replace("/api", string.Empty).Replace("https://", string.Empty).Replace("http://", String.Empty), roomStatusManager.GetPort().ToString());
-            try
-            {
-                connectionManager.SendLocation(gameName, slotName, locationId ?? 0);
-            }
-            catch
-            {
-                await SendMessage("Failed To Connect To Room", arg.GuildId ?? 0, arg.ChannelId ?? 0);
-                return;
-            }
-            
-            await SendMessage("Sent!", arg.GuildId ?? 0, arg.ChannelId ?? 0);
+            await trackerManager.SendLocation(guildId, arg.ChannelId ?? 0, slotName, locationName);
         }
     }
     
@@ -268,29 +233,9 @@ class Program
                 return;
             }
             
-            var roomStatusManager = new RoomStatusManager(world.BaseUrl, world.RoomUuid);
-            await roomStatusManager.GetRoomStatusAsync();
-
-            string? gameName = roomStatusManager.GetPlayerGameFromPlayerName(slotName);
-
-            if (gameName == null)
-            {
-                await SendMessage("Not A Valid Slot", arg.GuildId ?? 0, arg.ChannelId ?? 0);
-                return;
-            }
-
-            var connectionManager = new MultiworldConnectionManager(world.BaseUrl.Replace("/api", string.Empty).Replace("https://", string.Empty).Replace("http://", String.Empty), roomStatusManager.GetPort().ToString());
-            try
-            {
-                connectionManager.ReleaseSlot(gameName, slotName);
-            }
-            catch
-            {
-                await SendMessage("Failed To Connect To Room", arg.GuildId ?? 0, arg.ChannelId ?? 0);
-                return;
-            }
+            var trackerManager = TrackerManagers[world.TrackerUuid];
             
-            await SendMessage("Released!", arg.GuildId ?? 0, arg.ChannelId ?? 0);
+            await trackerManager.ReleaseSlot(guildId, arg.ChannelId ?? 0, slotName);
         }
     }
 
