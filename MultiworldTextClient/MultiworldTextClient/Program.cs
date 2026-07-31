@@ -84,8 +84,25 @@ class Program
                 ITrigger trigger = TriggerBuilder.Create()
                     .StartNow()
                     .WithSimpleSchedule(x => x.WithIntervalInMinutes(1).RepeatForever())
-                    .WithIdentity($"{world.TrackerUuid}-messages-trigger")
+                    .WithIdentity($"{world.TrackerUuid}-trigger")
                     .Build();
+
+                if (world.ReleasePercent != null)
+                {
+                    IJobDetail releaseSlotsJob = JobBuilder.Create<ReleaseSlotsJob>()
+                        .UsingJobData("trackerUuid", world.TrackerUuid)
+                        .UsingJobData("percentage", world.ReleasePercent ?? 1)
+                        .WithIdentity($"{world.TrackerUuid}-slots")
+                        .Build();
+            
+                    ITrigger slotsTrigger = TriggerBuilder.Create()
+                        .StartNow()
+                        .WithSimpleSchedule(x => x.WithIntervalInMinutes(1).RepeatForever())
+                        .WithIdentity($"{world.TrackerUuid}-slots-trigger")
+                        .Build();
+            
+                    await _scheduler.ScheduleJob(releaseSlotsJob, slotsTrigger);
+                }
         
                 await _scheduler.ScheduleJob(sendMessagesJob, trigger);
             }
@@ -124,6 +141,7 @@ class Program
         baseUrl = "https://" + baseUrl;
         string trackerUuid = arg.Data.Options.FirstOrDefault(o => o.Name.Equals("trackeruuid")).Value.ToString();
         string roomUuid = arg.Data.Options.FirstOrDefault(o => o.Name.Equals("roomuuid")).Value.ToString();
+        double? percentage = arg.Data.Options.Any(o => o.Name.Equals("releasepercentage"))? (double)arg.Data.Options.FirstOrDefault(o => o.Name.Equals("releasepercentage")).Value : null;
             
         var tracker = new TrackerManager(baseUrl, trackerUuid, roomUuid);
         await tracker.GetStaticTracker();
@@ -141,10 +159,27 @@ class Program
         ITrigger trigger = TriggerBuilder.Create()
             .StartNow()
             .WithSimpleSchedule(x => x.WithIntervalInMinutes(1).RepeatForever())
-            .WithIdentity($"{trackerUuid}-messages-trigger")
+            .WithIdentity($"{trackerUuid}-trigger")
             .Build();
         
         await _scheduler.ScheduleJob(sendMessagesJob, trigger);
+
+        if (percentage != null)
+        {
+            IJobDetail releaseSlotsJob = JobBuilder.Create<ReleaseSlotsJob>()
+                .UsingJobData("trackerUuid", trackerUuid)
+                .UsingJobData("percentage", percentage ?? 1)
+                .WithIdentity($"{trackerUuid}-slots")
+                .Build();
+            
+            ITrigger slotsTrigger = TriggerBuilder.Create()
+                .StartNow()
+                .WithSimpleSchedule(x => x.WithIntervalInMinutes(1).RepeatForever())
+                .WithIdentity($"{trackerUuid}-slots-trigger")
+                .Build();
+            
+            await _scheduler.ScheduleJob(releaseSlotsJob, slotsTrigger);
+        }
         
         TrackedWorld world =  new TrackedWorld()
         {
@@ -152,7 +187,8 @@ class Program
             TrackerUuid = trackerUuid,
             RoomUuid = roomUuid,
             GuildId = arg.GuildId ?? 0,
-            ChannelId = arg.ChannelId ?? 0
+            ChannelId = arg.ChannelId ?? 0,
+            ReleasePercent = percentage,
         };
 
         using (var context = new ItemsDbContext())
@@ -247,7 +283,8 @@ class Program
             .WithDefaultMemberPermissions(GuildPermission.Administrator)
             .AddOption("baseurl", ApplicationCommandOptionType.String, "Base URL of Multiworld room host", true)
             .AddOption("trackeruuid", ApplicationCommandOptionType.String, "Tracker UUID of room", true)
-            .AddOption("roomuuid", ApplicationCommandOptionType.String, "Room UUID of room", true);
+            .AddOption("roomuuid", ApplicationCommandOptionType.String, "Room UUID of room", true)
+            .AddOption("releasepercentage", ApplicationCommandOptionType.Number, "Percentage To Release Goaled Slots At. Null Will Disabled This Feature.", false);
 
         var requestLocationSendCommand = new SlashCommandBuilder()
             .WithName("requestlocationsend")

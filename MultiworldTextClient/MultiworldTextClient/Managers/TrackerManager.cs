@@ -120,6 +120,38 @@ public class TrackerManager
         }
     }
 
+    public async Task SendGoaledSlotsForPercentage(double percentage)
+    {
+        var tracker = await GetTracker();
+
+        var goaledSlots = tracker.PlayerStatus.Where(ps => ps.Status == 30).Select(ps => ps.Player);
+        
+        List<int> toRelease =  new List<int>();
+
+        foreach (var goaledSlot in goaledSlots)
+        {
+            var totalLocations = _staticTracker.GetPlayersTotalLocations(goaledSlot) ?? 1;
+            var completedLocations = tracker.PlayerChecksDone.FirstOrDefault(pcd => pcd.Player == goaledSlot).Locations.Count();
+            
+            if (totalLocations == completedLocations) continue;
+
+            if (percentage <= ((double)completedLocations / (double)totalLocations))
+            {
+                toRelease.Add(goaledSlot);
+            }
+        }
+
+        await GetRoomStatus();
+        var connectionManager = new MultiworldConnectionManager(_baseUri.Replace("/api", string.Empty).Replace("https://", string.Empty).Replace("http://", String.Empty), _roomStatus.GetPort().ToString());
+        foreach (var player in toRelease)
+        {
+            var slotName = _roomStatus.GetPlayerNameFromId(player);
+            var gameName = _roomStatus.GetPlayerGameFromId(player);
+            
+            connectionManager.ReleaseSlot(gameName, slotName);
+        }
+    }
+
     public async Task SendLocation(ulong guildId, ulong channelId, string slotName, string locationName)
     {
         await GetRoomStatus();

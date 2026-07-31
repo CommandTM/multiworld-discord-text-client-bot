@@ -11,4 +11,5 @@ public class TrackedWorld
     public string BaseUrl { get; set; }
     public string TrackerUuid { get; set; }
     public string RoomUuid { get; set; }
+    public double? ReleasePercent { get; set; }
 }

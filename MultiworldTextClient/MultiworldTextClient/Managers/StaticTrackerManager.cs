@@ -80,4 +80,10 @@ public class StaticTrackerManager
         
         return _staticTracker.Datapackages[gameName].Checksum;
     }
+
+    public int? GetPlayersTotalLocations(int playerId)
+    {
+        var playerTotalLocations = _staticTracker?.PlayerTotalLocations.FirstOrDefault(ptl => ptl.Player == playerId);
+        return playerTotalLocations?.TotalLocations;
+    }
 }
