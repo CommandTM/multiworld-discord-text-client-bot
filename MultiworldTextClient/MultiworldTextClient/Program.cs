@@ -101,7 +101,7 @@ class Program
                         .WithIdentity($"{world.TrackerUuid}-slots-trigger")
                         .Build();
             
-                    await _scheduler.ScheduleJob(releaseSlotsJob, slotsTrigger);
+                    //await _scheduler.ScheduleJob(releaseSlotsJob, slotsTrigger);
                 }
         
                 await _scheduler.ScheduleJob(sendMessagesJob, trigger);
@@ -123,6 +123,9 @@ class Program
                     break;
                 case "requestslotrelease":
                     await RequestSlotRelease(arg);
+                    break;
+                case "releaseslot":
+                    await SlotRelease(arg);
                     break;
             }
         }
@@ -178,7 +181,7 @@ class Program
                 .WithIdentity($"{trackerUuid}-slots-trigger")
                 .Build();
             
-            await _scheduler.ScheduleJob(releaseSlotsJob, slotsTrigger);
+            //await _scheduler.ScheduleJob(releaseSlotsJob, slotsTrigger);
         }
         
         TrackedWorld world =  new TrackedWorld()
@@ -275,6 +278,45 @@ class Program
         }
     }
 
+    private static async Task SlotRelease(SocketSlashCommand arg)
+    {
+        var guildId = arg.GuildId ?? 0;
+        var channelId = arg.ChannelId ?? 0;
+        string slotName = arg.Data.Options.FirstOrDefault(o => o.Name.Equals("slotname")).Value.ToString();
+
+        await arg.RespondAsync("Checking For Release...");
+        using (var context = new ItemsDbContext())
+        {
+            TrackedWorld? world;
+
+            if (context.TrackedWorlds.Where(tw => tw.GuildId == guildId).Count() > 1)
+            {
+                string? roomUuid = arg.Data.Options.FirstOrDefault(o => o.Name.Equals("roomuuid"))?.Value.ToString();
+                if (roomUuid == null)
+                {
+                    await SendMessage("Must Specify A Room UUID", arg.GuildId ?? 0, arg.ChannelId ?? 0);
+                    return;
+                }
+
+                world = context.TrackedWorlds.FirstOrDefault(t => t.RoomUuid == roomUuid);
+            }
+            else
+            {
+                world = context.TrackedWorlds.FirstOrDefault(w => w.GuildId == guildId);
+            }
+
+            if (world == null)
+            {
+                await SendMessage("No Valid Room Found", arg.GuildId ?? 0, arg.ChannelId ?? 0);
+                return;
+            }
+
+            var trackerManager = TrackerManagers[world.TrackerUuid];
+            
+            await trackerManager.CheckReleaseSlot(guildId, channelId, slotName, world.ReleasePercent);
+        }
+    }
+
     private static async Task Ready()
     {
         var startTrackingCommand = new SlashCommandBuilder()
@@ -301,9 +343,16 @@ class Program
             .AddOption("slotname", ApplicationCommandOptionType.String, "Slot Name to be released", true)
             .AddOption("roomuuid", ApplicationCommandOptionType.String, "Room UUID of room, must specify if multiple worlds are tracked in one guild", false);
         
+        var releaseSlotCommand = new SlashCommandBuilder()
+            .WithName("releaseslot")
+            .WithDescription("Releases a Slot Release If Goaled And Above Percentage")
+            .AddOption("slotname", ApplicationCommandOptionType.String, "Slot Name to be released", true)
+            .AddOption("roomuuid", ApplicationCommandOptionType.String, "Room UUID of room, must specify if multiple worlds are tracked in one guild", false);
+        
         await _client.CreateGlobalApplicationCommandAsync(startTrackingCommand.Build());
         await _client.CreateGlobalApplicationCommandAsync(requestLocationSendCommand.Build());
         await _client.CreateGlobalApplicationCommandAsync(requestSlotReleaseCommand.Build());
+        await _client.CreateGlobalApplicationCommandAsync(releaseSlotCommand.Build());
         
         await CreateScheduler();
         await PopulateTrackedWorlds();

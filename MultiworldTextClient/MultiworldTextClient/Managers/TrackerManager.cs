@@ -154,7 +154,6 @@ public class TrackerManager
 
     public async Task SendLocation(ulong guildId, ulong channelId, string slotName, string locationName)
     {
-        await GetRoomStatus();
         string? gameName = _roomStatus.GetPlayerGameFromPlayerName(slotName);
 
         if (gameName == null)
@@ -170,6 +169,8 @@ public class TrackerManager
             await Program.SendMessage("Not A Valid Location", guildId, channelId);
             return;
         }
+        
+        await GetRoomStatus();
         
         var connectionManager = new MultiworldConnectionManager(_baseUri.Replace("/api", string.Empty).Replace("https://", string.Empty).Replace("http://", String.Empty), _roomStatus.GetPort().ToString());
         try
@@ -187,7 +188,6 @@ public class TrackerManager
     
     public async Task ReleaseSlot(ulong guildId, ulong channelId, string slotName)
     {
-        await GetRoomStatus();
         string? gameName = _roomStatus.GetPlayerGameFromPlayerName(slotName);
 
         if (gameName == null)
@@ -195,6 +195,8 @@ public class TrackerManager
             await Program.SendMessage("Not A Valid Slot", guildId, channelId);
             return;
         }
+        
+        await GetRoomStatus();
         
         var connectionManager = new MultiworldConnectionManager(_baseUri.Replace("/api", string.Empty).Replace("https://", string.Empty).Replace("http://", String.Empty), _roomStatus.GetPort().ToString());
         try
@@ -208,5 +210,40 @@ public class TrackerManager
         }
             
         await Program.SendMessage("Released!", guildId, channelId);
+    }
+
+    public async Task CheckReleaseSlot(ulong guildId, ulong channelId, string slotName, double? percentage)
+    {
+        var playerId = _roomStatus.GetPlayerIdFromPlayerName(slotName);
+        if (playerId == null)
+        {
+            await Program.SendMessage("Not A Valid Slot", guildId, channelId);
+            return;
+        }
+        
+        var tracker = await GetTracker();
+
+        if (tracker.PlayerStatus.FirstOrDefault(ps => ps.Player == playerId).Status != 30)
+        {
+            await Program.SendMessage("Slot Is Not Goaled", guildId, channelId);
+            return;
+        }
+        
+        var totalLocations = _staticTracker.GetPlayersTotalLocations((int)playerId) ?? 1;
+        var completedLocations = tracker.PlayerChecksDone.FirstOrDefault(pcd => pcd.Player == playerId).Locations.Count();
+
+        if (totalLocations == completedLocations)
+        {
+            await Program.SendMessage("Slot is already released", guildId, channelId);
+            return;
+        }
+
+        if (percentage != null && percentage > ((double)completedLocations / (double)totalLocations))
+        {
+            await Program.SendMessage("Slot does not meet release requirements",  guildId, channelId);
+            return;
+        }
+        
+        await ReleaseSlot(guildId, channelId, slotName);
     }
 }

@@ -39,6 +39,19 @@ public class RoomStatusManager
         
         return _roomStatus.Players[index][0];
     }
+
+    public long? GetPlayerIdFromPlayerName(string name)
+    {
+        foreach (var player in _roomStatus.Players)
+        {
+            if (player[0] == name)
+            {
+                return _roomStatus.Players.IndexOf(player)+1;
+            }
+        }
+
+        return null;
+    }
     
     public string GetPlayerGameFromId(long id)
     {
