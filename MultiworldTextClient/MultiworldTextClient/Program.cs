@@ -68,6 +68,7 @@ class Program
             var worlds = context.TrackedWorlds.ToList();
             foreach (var world in worlds)
             {
+                Console.WriteLine($"Initializing World {world.TrackerUuid}...");
                 var tracker = new TrackerManager(world.BaseUrl, world.TrackerUuid, world.RoomUuid);
                 await tracker.GetStaticTracker();
                 await tracker.GetRoomStatus();
@@ -86,25 +87,9 @@ class Program
                     .WithSimpleSchedule(x => x.WithIntervalInMinutes(1).RepeatForever())
                     .WithIdentity($"{world.TrackerUuid}-trigger")
                     .Build();
-
-                if (world.ReleasePercent != null)
-                {
-                    IJobDetail releaseSlotsJob = JobBuilder.Create<ReleaseSlotsJob>()
-                        .UsingJobData("trackerUuid", world.TrackerUuid)
-                        .UsingJobData("percentage", world.ReleasePercent ?? 1)
-                        .WithIdentity($"{world.TrackerUuid}-slots")
-                        .Build();
-            
-                    ITrigger slotsTrigger = TriggerBuilder.Create()
-                        .StartNow()
-                        .WithSimpleSchedule(x => x.WithIntervalInMinutes(1).RepeatForever())
-                        .WithIdentity($"{world.TrackerUuid}-slots-trigger")
-                        .Build();
-            
-                    //await _scheduler.ScheduleJob(releaseSlotsJob, slotsTrigger);
-                }
         
                 await _scheduler.ScheduleJob(sendMessagesJob, trigger);
+                Console.WriteLine("Initialized");
             }
         }
     }

@@ -53,69 +53,105 @@ public class TrackerManager
 
     public async Task SendItemMessaages(ulong guildId, ulong channelId)
     {
+        Console.WriteLine("Getting Tracker...");
         var tracker = await GetTracker();
+        Console.WriteLine("Got Tracker");
 
         using (var context = new ItemsDbContext())
         {
-            var processedItems = context.ProcessedItems.Where(pi => pi.TrackerUuid.Equals(_trackerUuid)).ToList();
-            var itemsToSend = new List<List<long>>();
-            foreach (var ItemsReceived in tracker.PlayerItemsRecevied)
+            try
             {
-                foreach (var item in ItemsReceived.Items)
+                var processedItems = context.ProcessedItems.Where(pi => pi.TrackerUuid.Equals(_trackerUuid)).ToList();
+                var itemsToSend = new List<List<long>>();
+                Console.WriteLine("Starting Processing Received Items...");
+                foreach (var ItemsReceived in tracker.PlayerItemsRecevied)
                 {
-                    if (!processedItems.Any(pi => pi.ItemId == item[0] && pi.LocationId == item[1]))
+                    Console.WriteLine($"Starting Processing {ItemsReceived.Player}'s Items...");
+                    foreach (var item in ItemsReceived.Items)
                     {
-                        var classification = item[3];
-
-                        if ((classification & 1) == 1)
+                        if (!processedItems.Any(pi => pi.ItemId == item[0] && pi.LocationId == item[1]))
                         {
-                            item.Add(ItemsReceived.Player);
-                            itemsToSend.Add(item);
+                            Console.WriteLine($"Processing item {item[0]} at location {item[1]}...");
+                            var classification = item[3];
+
+                            if ((classification & 1) == 1)
+                            {
+                                item.Add(ItemsReceived.Player);
+                                itemsToSend.Add(item);
+                            }
+                            else
+                            {
+                                ProcessedItem newProcessedItem = new()
+                                {
+                                    TrackerUuid = _trackerUuid,
+                                    ItemId = item[0],
+                                    LocationId = item[1]
+                                };
+                                context.Add(newProcessedItem);
+                            }
+                            Console.WriteLine("Done Processing Item");
                         }
                     }
-                }
-            }
 
-            if (itemsToSend.Any())
-            {
-                string message = "```ansi\n";
-                int maxLength = 1925;
-                foreach (var item in itemsToSend)
+                    Console.WriteLine("Done Processing Player's Items");
+                }
+
+                Console.WriteLine("Done Processing Received Items");
+
+                if (itemsToSend.Any())
                 {
-                    string receiver = _roomStatus.GetPlayerNameFromId(item[4]);
-                    string receiverChecksum = _staticTracker.GetChecksumFromGameName(_roomStatus.GetPlayerGameFromId(item[4]));
-                
-                    string sender = _roomStatus.GetPlayerNameFromId(item[2]);
-                    string senderChecksum = _staticTracker.GetChecksumFromGameName(_roomStatus.GetPlayerGameFromId(item[2]));
+                    Console.WriteLine("Sending Messages...");
+                    string message = "```ansi\n";
+                    int maxLength = 1925;
+                    foreach (var item in itemsToSend)
+                    {
+                        Console.WriteLine($"Processing message for item {item[0]} at location {item[1]}...");
+                        string receiver = _roomStatus.GetPlayerNameFromId(item[4]);
+                        string receiverChecksum =
+                            _staticTracker.GetChecksumFromGameName(_roomStatus.GetPlayerGameFromId(item[4]));
 
-                    string itemName = _staticTracker.GetItemNameFromId(item[0], receiverChecksum);
-                    string location = _staticTracker.GetLocationNameFromId(item[1], senderChecksum);
+                        string sender = _roomStatus.GetPlayerNameFromId(item[2]);
+                        string senderChecksum =
+                            _staticTracker.GetChecksumFromGameName(_roomStatus.GetPlayerGameFromId(item[2]));
 
-                    string itemMessage =
-                        $"[2;33m{sender}[0m [2;37msent[0m [2;35m{itemName}[0m[0;2m[0;2m[0m[0m[2;40m[2;42m[0;2m[0m[2;42m[0m[2;40m[0m [2;37mto[0m [2;33m{receiver}[0m [2;37m([0m[2;37m{location}[0m[2;37m)[0m";
-                    if (message.Length + itemMessage.Length < maxLength)
-                    {
-                        message += itemMessage + "\n";
+                        string itemName = _staticTracker.GetItemNameFromId(item[0], receiverChecksum);
+                        string location = _staticTracker.GetLocationNameFromId(item[1], senderChecksum);
+
+                        string itemMessage =
+                            $"[2;33m{sender}[0m [2;37msent[0m [2;35m{itemName}[0m[0;2m[0;2m[0m[0m[2;40m[2;42m[0;2m[0m[2;42m[0m[2;40m[0m [2;37mto[0m [2;33m{receiver}[0m [2;37m([0m[2;37m{location}[0m[2;37m)[0m";
+                        if (message.Length + itemMessage.Length < maxLength)
+                        {
+                            message += itemMessage + "\n";
+                        }
+                        else
+                        {
+                            message += "\n```";
+                            await Program.SendMessage(message, guildId, channelId);
+                            Console.WriteLine("Sent Message!");
+                            message = "```ansi\n";
+                            message += itemMessage + "\n";
+                        }
+
+                        ProcessedItem newProcessedItem = new()
+                        {
+                            TrackerUuid = _trackerUuid,
+                            ItemId = item[0],
+                            LocationId = item[1]
+                        };
+                        context.Add(newProcessedItem);
+                        Console.WriteLine("Done Processing Item Message");
                     }
-                    else
-                    {
-                        message += "\n```";
-                        await Program.SendMessage(message, guildId, channelId);
-                        message = "```ansi\n";
-                        message += itemMessage + "\n";
-                    }
-                    ProcessedItem newProcessedItem = new()
-                    {
-                        TrackerUuid = _trackerUuid,
-                        ItemId = item[0],
-                        LocationId = item[1]
-                    };
-                    context.Add(newProcessedItem);
+
+                    message += "\n```";
+                    await Program.SendMessage(message, guildId, channelId);
+                    Console.WriteLine("Sent Message!");
+                    Console.WriteLine("Done Sending Messages");
                 }
-
-                message += "\n```";
-                await Program.SendMessage(message, guildId, channelId);
                 context.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unhandled Exception While Sending Messages: {ex.Message}");
             }
         }
     }
@@ -214,36 +250,43 @@ public class TrackerManager
 
     public async Task CheckReleaseSlot(ulong guildId, ulong channelId, string slotName, double? percentage)
     {
-        var playerId = _roomStatus.GetPlayerIdFromPlayerName(slotName);
-        if (playerId == null)
+        try
         {
-            await Program.SendMessage("Not A Valid Slot", guildId, channelId);
-            return;
-        }
+            var playerId = _roomStatus.GetPlayerIdFromPlayerName(slotName);
+            if (playerId == null)
+            {
+                await Program.SendMessage("Not A Valid Slot", guildId, channelId);
+                return;
+            }
         
-        var tracker = await GetTracker();
+            var tracker = await GetTracker();
 
-        if (tracker.PlayerStatus.FirstOrDefault(ps => ps.Player == playerId).Status != 30)
-        {
-            await Program.SendMessage("Slot Is Not Goaled", guildId, channelId);
-            return;
-        }
+            if (tracker.PlayerStatus.FirstOrDefault(ps => ps.Player == playerId).Status != 30)
+            {
+                await Program.SendMessage("Slot Is Not Goaled", guildId, channelId);
+                return;
+            }
         
-        var totalLocations = _staticTracker.GetPlayersTotalLocations((int)playerId) ?? 1;
-        var completedLocations = tracker.PlayerChecksDone.FirstOrDefault(pcd => pcd.Player == playerId).Locations.Count();
+            var totalLocations = _staticTracker.GetPlayersTotalLocations((int)playerId) ?? 1;
+            var completedLocations = tracker.PlayerChecksDone.FirstOrDefault(pcd => pcd.Player == playerId).Locations.Count();
 
-        if (totalLocations == completedLocations)
-        {
-            await Program.SendMessage("Slot is already released", guildId, channelId);
-            return;
-        }
+            if (totalLocations == completedLocations)
+            {
+                await Program.SendMessage("Slot is already released", guildId, channelId);
+                return;
+            }
 
-        if (percentage != null && percentage > ((double)completedLocations / (double)totalLocations))
-        {
-            await Program.SendMessage("Slot does not meet release requirements",  guildId, channelId);
-            return;
-        }
+            if (percentage != null && percentage > ((double)completedLocations / (double)totalLocations))
+            {
+                await Program.SendMessage("Slot does not meet release requirements",  guildId, channelId);
+                return;
+            }
         
-        await ReleaseSlot(guildId, channelId, slotName);
+            await ReleaseSlot(guildId, channelId, slotName);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Unhandled Exception While Checking Release Slot: {ex.Message}");
+        }
     }
 }

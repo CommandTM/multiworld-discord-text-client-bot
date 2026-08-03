@@ -26,7 +26,7 @@ public class TrackerChecksDone
     [JsonProperty("player")]
     public int Player { get; set; }
     [JsonProperty("locations")]
-    public List<int> Locations { get; set; } = new List<int>();
+    public List<long> Locations { get; set; } = new List<long>();
 }
 
 public class TrackerStatus
